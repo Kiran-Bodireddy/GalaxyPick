@@ -2,6 +2,7 @@ import React from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowRight, Smartphone, LayoutGrid, ShieldCheck } from 'lucide-react';
 import { Header } from '../components/Header';
+import FLAGSHIP_HERO from '../assets/hero_devices.jpg';
 
 const flagshipSeries = [
   {
@@ -33,8 +34,6 @@ const flagshipSeries = [
   },
 ];
 
-// Latest flagship — Samsung Galaxy hero render (real Samsung phone photo)
-const FLAGSHIP_HERO = 'https://images.unsplash.com/photo-1610945265064-0e34e5519bbf?crop=entropy&cs=srgb&fm=jpg&w=900&q=90';
 
 export default function Landing() {
   return (
@@ -68,22 +67,15 @@ export default function Landing() {
             </div>
           </div>
 
-          <div className="fade-up fade-up-2 relative flex justify-center items-center min-h-[440px]">
-            <div className="absolute inset-0 rounded-[3rem] bg-gradient-to-br from-blue-100 via-blue-50 to-white opacity-70 blur-3xl" />
-            <div className="relative w-full max-w-md aspect-[4/5] rounded-[2.5rem] overflow-hidden shadow-[0_30px_80px_rgba(27,78,255,0.20)]">
+          <div className="relative flex justify-center items-center min-h-[440px]">
+            <div className="hero-glow absolute inset-0 rounded-[3rem] bg-gradient-to-br from-blue-100 via-blue-50 to-white opacity-70 blur-3xl" />
+            <div className="hero-device relative w-full max-w-xl aspect-[16/9] rounded-[2.5rem] overflow-hidden shadow-[0_30px_80px_rgba(27,78,255,0.20)]">
               <img
                 src={FLAGSHIP_HERO}
                 alt="Samsung Galaxy S26 Ultra — latest flagship"
                 className="w-full h-full object-cover"
                 data-testid="hero-flagship-image"
               />
-              <div className="absolute bottom-4 left-4 right-4 flex items-center justify-between bg-white/85 backdrop-blur-md rounded-2xl px-4 py-3">
-                <div>
-                  <div className="text-[10px] font-bold uppercase tracking-widest text-gray-400">Latest Flagship</div>
-                  <div className="text-sm font-extrabold text-black">Galaxy S26 Ultra</div>
-                </div>
-                <div className="text-xs font-semibold text-[#1B4EFF]">From ₹1,39,999</div>
-              </div>
             </div>
           </div>
         </div>
@@ -95,7 +87,7 @@ export default function Landing() {
               <div className="text-xs font-bold uppercase tracking-[0.2em] text-[#1B4EFF] mb-2">Explore the Lineup</div>
               <h2 className="font-display text-3xl lg:text-4xl font-extrabold text-black">Samsung Galaxy Flagship Models</h2>
             </div>
-            <Link to="/persona" className="hidden sm:inline-flex items-center gap-1 text-sm font-semibold text-[#1B4EFF] hover:text-[#1428A0]" data-testid="view-all-models-link">
+            <Link to="/models" className="hidden sm:inline-flex items-center gap-1 text-sm font-semibold text-[#1B4EFF] hover:text-[#1428A0]" data-testid="view-all-models-link">
               View all models <ArrowRight className="w-4 h-4" />
             </Link>
           </div>

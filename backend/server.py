@@ -4,6 +4,8 @@ from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
 import os
+import json
+import asyncio
 import logging
 from pathlib import Path
 from pydantic import BaseModel, Field, ConfigDict
@@ -13,7 +15,8 @@ from datetime import datetime, timezone
 import httpx
 
 from phones import PHONES, match_score
-from emergentintegrations.llm.chat import LlmChat, UserMessage, TextDelta, StreamDone
+from google import genai
+from google.genai import types as genai_types
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
@@ -22,7 +25,18 @@ mongo_url = os.environ['MONGO_URL']
 client = AsyncIOMotorClient(mongo_url)
 db = client[os.environ['DB_NAME']]
 
-EMERGENT_LLM_KEY = os.environ.get('EMERGENT_LLM_KEY')
+GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY')
+GEMINI_MODEL = os.environ.get('GEMINI_MODEL', 'gemini-3.5-flash')
+genai_client = genai.Client(api_key=GEMINI_API_KEY) if GEMINI_API_KEY else None
+
+# Gemini returns transient 5xx/429s under load; a retry usually clears them.
+RETRIABLE_STATUS = {429, 500, 502, 503, 504}
+MAX_LLM_ATTEMPTS = 3
+RETRY_BACKOFF_SECONDS = 0.8
+LLM_ERROR_MESSAGE = (
+    "Sorry — Galaxy AI is having trouble reaching its brain right now. "
+    "Please try that again in a moment."
+)
 
 app = FastAPI(title="GalaxyPick API")
 api_router = APIRouter(prefix="/api")
@@ -105,19 +119,50 @@ async def location(request: Request):
         return {"country": "India", "country_code": "IN", "currency": "INR"}
 
 
+def phones_mentioned(text, limit=3):
+    """Catalog phones named in an assistant reply, in order of first mention.
+
+    Matches longest names first and blanks each hit out of the haystack, so
+    'Galaxy S26 Ultra' isn't also counted as a mention of 'Galaxy S26'.
+    """
+    haystack = text
+    hits = []
+    for phone in sorted(PHONES, key=lambda p: -len(p["name"])):
+        idx = haystack.find(phone["name"])
+        if idx != -1:
+            hits.append((idx, phone))
+            haystack = haystack[:idx] + "\0" * len(phone["name"]) + haystack[idx + len(phone["name"]):]
+    hits.sort(key=lambda hit: hit[0])
+    return [phone for _, phone in hits[:limit]]
+
+
+def phone_card(phone):
+    """Compact payload for the in-chat product cards."""
+    return {
+        "id": phone["id"],
+        "name": phone["name"],
+        "price_inr": phone["price_inr"],
+        "image": phone["image"],
+        "features": phone["features"][:3],
+        "samsung_url": next(s["url"] for s in store_links(phone) if s["name"] == "Samsung"),
+    }
+
+
+def store_links(phone):
+    q = phone["name"].replace(" ", "+")
+    return [
+        {"name": "Samsung", "url": f"https://www.google.com/search?q=site%3Asamsung.com+{q}", "price_inr": phone["price_inr"]},
+        {"name": "Amazon", "url": f"https://www.amazon.in/s?k={q}", "price_inr": phone["price_inr"]},
+        {"name": "Flipkart", "url": f"https://www.flipkart.com/search?q={q}", "price_inr": int(phone["price_inr"] * 1.015)},
+    ]
+
+
 @api_router.get("/buy-links/{phone_id}")
 async def buy_links(phone_id: str):
     phone = next((p for p in PHONES if p["id"] == phone_id), None)
     if not phone:
         raise HTTPException(status_code=404, detail="Phone not found")
-    q = phone["name"].replace(" ", "+")
-    return {
-        "stores": [
-            {"name": "Samsung", "url": f"https://www.google.com/search?q=site%3Asamsung.com+{q}", "price_inr": phone["price_inr"]},
-            {"name": "Amazon", "url": f"https://www.amazon.in/s?k={q}", "price_inr": phone["price_inr"]},
-            {"name": "Flipkart", "url": f"https://www.flipkart.com/search?q={q}", "price_inr": int(phone["price_inr"] * 1.015)},
-        ]
-    }
+    return {"stores": store_links(phone)}
 
 
 # -------------------- Chat with Galaxy AI --------------------
@@ -149,35 +194,74 @@ Guidelines:
 
 @api_router.post("/chat")
 async def chat(req: ChatRequest):
-    if not EMERGENT_LLM_KEY:
+    if not genai_client:
         raise HTTPException(status_code=500, detail="LLM key not configured")
 
     # Save user message
     user_msg = ChatMessage(session_id=req.session_id, role="user", content=req.message)
     await db.chat_messages.insert_one(user_msg.model_dump())
 
+    # Replay the stored turns so the model can see the conversation so far.
+    # The just-saved user message is the last entry, so this doubles as the prompt.
+    prior = await db.chat_messages.find(
+        {"session_id": req.session_id}, {"_id": 0}
+    ).sort("created_at", 1).to_list(100)
+    contents = [
+        genai_types.Content(
+            role="model" if m["role"] == "assistant" else "user",
+            parts=[genai_types.Part(text=m["content"])],
+        )
+        for m in prior if m["content"]
+    ]
+
     persona_ctx = f"\n\nUser persona: {req.persona}" if req.persona else ""
-    llm = LlmChat(
-        api_key=EMERGENT_LLM_KEY,
-        session_id=req.session_id,
-        system_message=SYSTEM_PROMPT + persona_ctx,
-    ).with_model("gemini", "gemini-3-flash-preview")
+    config = genai_types.GenerateContentConfig(
+        system_instruction=SYSTEM_PROMPT + persona_ctx,
+        # Thinking roughly doubles token spend on this workload for no gain here,
+        # and burns free-tier quota. Recommending a phone needs no reasoning budget.
+        thinking_config=genai_types.ThinkingConfig(thinking_budget=0),
+    )
 
     async def event_gen():
         full = []
-        try:
-            async for ev in llm.stream_message(UserMessage(text=req.message)):
-                if isinstance(ev, TextDelta):
-                    full.append(ev.content)
-                    yield f"data: {ev.content}\n\n"
-                elif isinstance(ev, StreamDone):
+        failed = False
+        for attempt in range(MAX_LLM_ATTEMPTS):
+            try:
+                stream = await genai_client.aio.models.generate_content_stream(
+                    model=GEMINI_MODEL, contents=contents, config=config
+                )
+                async for chunk in stream:
+                    if chunk.text:
+                        full.append(chunk.text)
+                        # JSON-encode: model output contains blank lines, which would
+                        # otherwise split the SSE frame and truncate the message.
+                        yield f"data: {json.dumps(chunk.text)}\n\n"
+                failed = False
+                break
+            except Exception as e:
+                failed = True
+                code = getattr(e, "code", None)
+                retriable = code in RETRIABLE_STATUS and not full
+                logger.error(
+                    f"LLM stream error (attempt {attempt + 1}/{MAX_LLM_ATTEMPTS}, "
+                    f"code={code}, retrying={retriable and attempt + 1 < MAX_LLM_ATTEMPTS}): {e}"
+                )
+                # Once any text has reached the client, a retry would duplicate it.
+                if not retriable or attempt + 1 == MAX_LLM_ATTEMPTS:
                     break
-        except Exception as e:
-            logger.error(f"LLM stream error: {e}")
-            yield f"data: [error: {str(e)}]\n\n"
-        # Persist final
-        assistant = ChatMessage(session_id=req.session_id, role="assistant", content="".join(full))
-        await db.chat_messages.insert_one(assistant.model_dump())
+                await asyncio.sleep(RETRY_BACKOFF_SECONDS * (2 ** attempt))
+
+        if failed and not full:
+            yield f"data: {json.dumps(LLM_ERROR_MESSAGE)}\n\n"
+
+        # Persist only a real reply — an empty row would pollute the replayed history.
+        if full:
+            reply = "".join(full)
+            cards = [phone_card(p) for p in phones_mentioned(reply)]
+            if cards:
+                yield f"data: {json.dumps({'type': 'phones', 'phones': cards})}\n\n"
+            assistant = ChatMessage(session_id=req.session_id, role="assistant", content=reply)
+            await db.chat_messages.insert_one(assistant.model_dump())
         yield "data: [DONE]\n\n"
 
     return StreamingResponse(

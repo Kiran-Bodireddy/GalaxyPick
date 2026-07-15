@@ -66,6 +66,29 @@ body {
 .fade-up-2 { animation-delay: 0.15s; }
 .fade-up-3 { animation-delay: 0.25s; }
 
+/* Hero device — settles in, then drifts */
+@keyframes heroReveal {
+    from { opacity: 0; transform: translateY(24px) scale(0.96); }
+    to { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes heroFloat {
+    50% { transform: translateY(-10px); }
+}
+.hero-device {
+    animation: heroReveal 0.9s cubic-bezier(0.22, 1, 0.36, 1) both,
+               heroFloat 6s ease-in-out 0.9s infinite;
+}
+@keyframes heroGlow {
+    50% { opacity: 0.85; transform: scale(1.06); }
+}
+.hero-glow {
+    animation: heroGlow 6s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .hero-device, .hero-glow { animation: none; }
+}
+
 /* Typing indicator */
 .typing-dot {
     display: inline-block;

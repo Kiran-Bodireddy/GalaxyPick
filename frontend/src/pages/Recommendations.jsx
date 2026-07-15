@@ -3,12 +3,14 @@ import { Link, useNavigate } from 'react-router-dom';
 import { ArrowRight, Bookmark, GitCompareArrows } from 'lucide-react';
 import { Header } from '../components/Header';
 import { useGalaxy } from '../context/GalaxyContext';
+import { useSaved } from '../hooks/useSaved';
 
 const fmt = (n) => `₹${n.toLocaleString('en-IN')}`;
 
 export default function Recommendations() {
   const nav = useNavigate();
   const { recommendations, fetchRecommendations, userName, needs, budget, persona } = useGalaxy();
+  const { toggle, isSaved } = useSaved();
 
   useEffect(() => {
     if (!recommendations || recommendations.length === 0) fetchRecommendations();
@@ -48,7 +50,9 @@ export default function Recommendations() {
               </div>
               <button
                 data-testid="compare-all-btn"
-                className="mt-6 flex items-center gap-2 text-sm font-semibold text-[#1B4EFF] hover:text-[#1428A0]"
+                onClick={() => nav(`/compare?ids=${recommendations.slice(0, 3).map(p => p.id).join(',')}`)}
+                disabled={recommendations.length === 0}
+                className="mt-6 flex items-center gap-2 text-sm font-semibold text-[#1B4EFF] hover:text-[#1428A0] disabled:text-gray-300 disabled:cursor-not-allowed"
               >
                 <GitCompareArrows className="w-4 h-4" /> Compare All
               </button>
@@ -70,8 +74,13 @@ export default function Recommendations() {
                         Best Match
                       </span>
                     )}
-                    <button className="absolute top-4 right-4 text-gray-300 hover:text-[#1B4EFF]">
-                      <Bookmark className="w-5 h-5" />
+                    <button
+                      data-testid={`recommendation-save-${p.id}`}
+                      aria-label={isSaved(p.id) ? `Remove ${p.name} from saved` : `Save ${p.name}`}
+                      onClick={() => toggle(p.id)}
+                      className={`absolute top-4 right-4 transition-colors ${isSaved(p.id) ? 'text-[#1B4EFF]' : 'text-gray-300 hover:text-[#1B4EFF]'}`}
+                    >
+                      <Bookmark className={`w-5 h-5 ${isSaved(p.id) ? 'fill-[#1B4EFF]' : ''}`} />
                     </button>
                     <img src={p.image} alt={p.name} className="w-full h-48 object-contain" />
                   </div>

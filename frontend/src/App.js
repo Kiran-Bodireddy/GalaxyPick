@@ -11,6 +11,9 @@ import Recommendations from "./pages/Recommendations";
 import ProductDetail from "./pages/ProductDetail";
 import Buy from "./pages/Buy";
 import Chat from "./pages/Chat";
+import Models from "./pages/Models";
+import Compare from "./pages/Compare";
+import { Toaster } from "./components/ui/sonner";
 
 function App() {
   return (
@@ -28,7 +31,10 @@ function App() {
             <Route path="/product/:id" element={<ProductDetail />} />
             <Route path="/buy/:id" element={<Buy />} />
             <Route path="/chat" element={<Chat />} />
+            <Route path="/models" element={<Models />} />
+            <Route path="/compare" element={<Compare />} />
           </Routes>
+          <Toaster />
         </BrowserRouter>
       </GalaxyProvider>
     </div>
