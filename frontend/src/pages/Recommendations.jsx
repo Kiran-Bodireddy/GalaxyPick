@@ -61,7 +61,7 @@ export default function Recommendations() {
               ) : (
                 <>
                   <h3 className="font-display text-2xl lg:text-3xl font-extrabold text-black leading-tight">
-                    {userName}, here are your <span className="text-[#1B4EFF]">perfect matches!</span> <span>✨</span>
+                    {userName}, here are your <span className="text-[#1B4EFF]">perfect matches!</span>
                   </h3>
                   <p className="text-sm text-gray-500 mt-3">Based on your needs and preferences.</p>
                 </>

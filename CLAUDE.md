@@ -42,23 +42,31 @@ The frontend does hot-reload.
 still passes `-n`. `pytest` and `pytest-xdist` are not in requirements.txt; install them
 into the venv.
 
-`tests/test_wizard_contract.py` is the guard against the wizard's worst failure mode
-(see below) — it reads the option ids straight out of the JSX and asserts each one
-exists in the catalog. `tests/test_key_pool.py` covers Gemini key rotation against
-fakes, so it never spends quota.
+`tests/test_wizard_contract.py` guards the wizard's worst failure mode (see below): it
+reads ids and filters straight out of the JSX and asserts they line up with the catalog —
+every option id exists, every preference can actually exclude something, every `series`
+has a filter chip, and `SYSTEM_PROMPT` lists exactly the catalog. `tests/test_key_pool.py`
+covers Gemini key rotation against fakes, so it never spends quota.
+
+These tests read the frontend from the backend suite on purpose. Each one exists because
+two copies of the same truth silently drifted apart; they are the only thing that notices.
 
 ## Setting up on a fresh machine
 
 Nothing here is installed by default; there is no Docker setup.
 
-1. **Node.js** (LTS) and **MongoDB Server** — e.g. `winget install OpenJS.NodeJS.LTS`
-   and `winget install MongoDB.Server`. Mongo runs as a Windows service on
-   `localhost:27017`; no auth, no seeding needed.
-2. **Yarn**, not npm. `package.json` uses a `resolutions` block, which npm ignores.
-   Use corepack: `corepack enable`. If that fails with EPERM (it writes to
-   `C:\Program Files\nodejs`), use `corepack enable --install-directory <writable dir>`
-   and put that dir on PATH.
-3. **Python venv** in `backend/.venv`.
+1. **Node.js** (LTS) and **MongoDB Server**. Mongo listens on `localhost:27017` with no
+   auth, and the app seeds nothing — the catalog is a Python list, and `chat_messages`
+   is created on first write.
+   - macOS: `brew install node mongodb-community@6.0` then
+     `brew services start mongodb-community@6.0`
+   - Windows: `winget install OpenJS.NodeJS.LTS` and `winget install MongoDB.Server`
+     (runs as a Windows service)
+2. **Yarn, not npm.** `package.json` uses a `resolutions` block, which npm ignores.
+   Use corepack: `corepack enable`. On Windows that can fail with EPERM (it writes to
+   `C:\Program Files\nodejs`) — then use
+   `corepack enable --install-directory <writable dir>` and put that dir on PATH.
+3. **Python venv** in `backend/.venv` (see the requirements.txt warning below).
 4. **Both `.env` files are gitignored and will not come with a clone** — recreate them
    (see below). The Gemini key in particular has to be carried over by hand.
 
@@ -169,17 +177,27 @@ M16, M36, A17, F17 and F06 are all 2025).
     raising the budget would help.
   - `relaxations` — the single preferences whose removal alone would yield results,
     with counts. With several filters set it isn't obvious which one is at fault
-    (`latest` excludes 7 of 12 phones), so the UI offers the targeted drop rather than
+    (`latest` excludes 14 of 21 phones), so the UI offers the targeted drop rather than
     "drop everything", which would discard constraints the user could have kept.
-- **A preference must be able to exclude something.** `5G ready` shipped matching all
-  12 phones, so it could never change a result and merely padded the empty-state
-  message with a filter that wasn't to blame; it was removed like `storage`. The
-  contract test now fails any preference matching 0 or all phones.
+- **A preference must be able to exclude something.** `5G ready` shipped matching every
+  phone, so it could never change a result and merely padded the empty-state message with
+  a filter that wasn't to blame; it was removed like `storage`. The contract test now
+  fails any preference matching 0 or all phones.
 - `compact`, `large_screen`, `latest` and `5g` are **derived** from `specs.display` and
   `year` in `phones.py`, not hand-written — that's what stops tags drifting from specs.
   `s_pen` and `foldable` are explicit; they aren't inferable from the data.
 - `storage` was removed from `Needs.jsx` rather than tagged: the catalog carries no
   storage spec, so there was nothing to match on. Re-add the chip only with real data.
+- `5g`, `business_executive`, `family`, `tech_enthusiast` and `traveller` are in
+  `match_tags` but **no UI control can send them**, so they can never be matched.
+  Harmless, but the catalog work behind them is inert.
+- Every `series` value needs a matching chip in `Models.jsx` `FILTERS` or those phones
+  are reachable only from "All models" — adding the F-series required one. A test
+  enforces it.
+- **The catalog is accurate but not exhaustive.** `a55`/`m55` were replaced by
+  `a56`/`m56` after Samsung discontinued them (`sm-a556`/`sm-m556` are gone from Samsung
+  India *and* UK, so no official render exists to fetch). Samsung India still sells the
+  A36, A26, A07, M06, M17, S25 FE and S24 (`sm-s921`), none of which are here.
 - `store_links(phone)` builds the Samsung/Amazon/Flipkart URLs and is shared by
   `/api/buy-links` and the chat cards — keep it that way so they can't drift.
 - **`SYSTEM_PROMPT`'s lineup is generated from `PHONES`** via `_catalog_for_prompt()`.
@@ -240,36 +258,43 @@ Be careful about presenting these as real:
 - **Reviews are hardcoded** — `4.6`, `2,345 reviews` and the 72/20/6/1/1 histogram are
   identical for every phone, and there is no reviews backend. "Write a Review" validates
   input, says "submitted for moderation", and discards it.
-- **All 12 catalog images are official Samsung renders** — sourced from Samsung India's
-  `/buy/` pages (`product_color_*`) and the `p6pim` gallery CDN (SKU URLs such as
-  `sm-a566ezahins`, with the `$650_519_PNG$` Scene7 preset), then trimmed of their white
-  padding and normalised onto a 900×675 canvas so every card fills its frame alike. They
-  live in `frontend/public/phones/{id}.jpg` and the catalog references them as
-  `/phones/{id}.jpg`; CRA serves `public/` at the site root, so no import is needed and
-  the backend keeps the path as plain data. Stored **locally on purpose** — remote Samsung
-  URLs rot, and this repo has been bitten twice (the old `m55`/`m35` 404s, and the A55
-  page vanishing outright).
-  - Samsung's masters for older SKUs top out around 235×290 for the product itself; larger
-    Scene7 presets only pad. Upscaling is fine — the card slot renders ~285px tall.
-  - Re-sourcing an image means scraping the page with a headless browser. The product
-    shots lazy-load, so a plain fetch sees only the marketing banner.
-- **The `a55`/`m55` entries were replaced by `a56`/`m56`.** Both originals were
-  **discontinued** — `sm-a556`/`sm-m556` are absent from Samsung India's lineup and the
-  A55 is gone from Samsung UK too, so no official render existed to fetch.
-- Samsung India still sells the A36, A26, A07, M06, M17, S25 FE and S24 (`sm-s921`),
-  none of which are in the catalog — it is accurate but not exhaustive. Every `series`
-  value needs a matching chip in `Models.jsx` `FILTERS` (a test enforces this); adding
-  the F-series required one.
 - **Store links are Google searches**, not real product pages
-  (`google.com/search?q=site:samsung.com+…`).
-- Product pages **used to** show a hardcoded `98% Match` for every phone regardless of
-  the wizard. It now renders the real score from `recommendations`, and is omitted
+  (`google.com/search?q=site:samsung.com+…`). No affiliate or price API is wired up.
+- The **product-page match badge** used to be a hardcoded `98%` on every phone regardless
+  of the wizard. It now renders the real score from `recommendations`, and is omitted
   entirely when deep-linked without wizard state. Don't reintroduce a literal.
-- `business_executive`, `family`, `tech_enthusiast` and `traveller` are in `match_tags`
-  but no UI control offers them, so they can never be matched. Harmless, but the
-  catalog work behind them is currently inert.
+- A **"Trusted by 50,000+ users"** line with three fake avatar circles was removed from
+  the landing hero. There are no users to count.
+
+**The product uses no emojis** — not in the UI, and `SYSTEM_PROMPT` forbids them in chat
+replies too, since a model told to be "warm and conversational" reaches for them and its
+output lands in the same UI. The `←`/`→` in link labels are typographic arrows, not emoji.
+
+## Phone images
+
+All 21 are official Samsung renders in `frontend/public/phones/{id}.jpg`, referenced by
+the catalog as `/phones/{id}.jpg` — CRA serves `public/` at the site root, so no import is
+needed and the backend keeps the path as plain data.
+
+Stored **locally on purpose**: remote Samsung URLs rot, and this repo has been bitten
+twice (the old `m55`/`m35` 404s, and the A55 page vanishing outright mid-project).
+
+Sourcing more:
+
+- Current phones have clean shots on the India `/buy/` page:
+  `images.samsung.com/in/smartphones/{slug}/buy/product_color_{colour}_{Tablet|PC}.{jpg|png}`.
+- Everything else lives on the `p6pim` gallery CDN under a SKU, e.g.
+  `.../p6pim/in/sm-a566ezahins/gallery/{name}?$650_519_PNG$`. Find SKUs by scraping the
+  `galaxy-a` / `galaxy-m` / `galaxy-f` / `galaxy-s` listing pages. F-series SKUs start
+  `sm-e` (F06 is `sm-e066`), not `sm-f`.
+- **Scrape with a headless browser**, not a plain fetch — the shots lazy-load, so
+  `curl`/WebFetch sees only the marketing banner.
+- Samsung's masters for older SKUs top out near 235×290 for the product itself; bigger
+  Scene7 presets only pad. Upscaling is fine — the card slot renders ~285px tall.
+- The pipeline trims the white padding and centres each product on a 900×675 canvas at
+  82% fill, so every card matches. Do the same for anything new.
 
 ## Notes
 
 - `test_result.md` contains an Emergent testing-agent protocol block marked do-not-edit.
-- The README is a placeholder; `frontend/README.md` is CRA boilerplate.
+- `frontend/README.md` is untouched CRA boilerplate; the root `README.md` is the real one.

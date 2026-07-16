@@ -57,14 +57,6 @@ export default function Landing() {
                 Get Started <ArrowRight className="w-4 h-4" />
               </Link>
             </div>
-            <div className="mt-8 flex items-center gap-3">
-              <div className="flex -space-x-2">
-                {['#1B4EFF', '#00C853', '#F59E0B'].map((c, i) => (
-                  <div key={i} className="w-8 h-8 rounded-full border-2 border-white" style={{ background: c }} />
-                ))}
-              </div>
-              <span className="text-sm text-gray-500">Trusted by 50,000+ users</span>
-            </div>
           </div>
 
           <div className="relative flex justify-center items-center min-h-[440px]">

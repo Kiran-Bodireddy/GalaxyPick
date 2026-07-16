@@ -56,7 +56,7 @@ export default function Needs() {
 
         <main className="lg:col-span-4 fade-up">
           <div className="mb-8">
-            <h2 className="font-display text-3xl lg:text-4xl font-extrabold text-black">Hello {userName}, <span className="inline-block">👋</span></h2>
+            <h2 className="font-display text-3xl lg:text-4xl font-extrabold text-black">Hello {userName}</h2>
             <p className="text-xl font-semibold text-black mt-2">Let's find the perfect Galaxy for you.</p>
             <p className="text-sm text-gray-500 mt-2">What matters most to you? <span className="text-black font-semibold">Choose up to 3</span></p>
           </div>
