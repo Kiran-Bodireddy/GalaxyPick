@@ -93,6 +93,20 @@ def test_derived_tags_track_the_specs():
         assert ("latest" in phone["match_tags"]) == (phone["year"] == _LATEST_YEAR)
 
 
+def test_every_series_has_a_filter_on_the_models_page():
+    """A series with no filter chip is reachable only from 'All models'.
+
+    Adding the F-series to the catalog needed a matching chip in Models.jsx; nothing
+    would have complained otherwise, the phones would just have been hard to find.
+    """
+    filters = set(re.findall(r"id: '(\w+)'", (PAGES / "Models.jsx").read_text()))
+    assert "all" in filters, "parsed no filters from Models.jsx"
+    # the 'Fold' chip also covers 'Flip' through a custom match predicate
+    covered = filters | ({"Flip"} if "Fold" in filters else set())
+    missing = {p["series"] for p in PHONES} - covered
+    assert not missing, f"catalog series with no filter chip: {sorted(missing)}"
+
+
 def test_system_prompt_offers_exactly_the_catalog():
     """Galaxy AI must be told about every phone, and about no phone that doesn't exist.
 

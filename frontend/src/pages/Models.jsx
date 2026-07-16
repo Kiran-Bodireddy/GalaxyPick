@@ -8,12 +8,15 @@ import { useSaved } from '../hooks/useSaved';
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 const fmt = (n) => `₹${n.toLocaleString('en-IN')}`;
 
+// Every `series` value in the catalog needs a home here, or those phones are only
+// reachable from "All models" — F-Series was added for exactly that reason.
 const FILTERS = [
   { id: 'all', label: 'All models' },
   { id: 'S', label: 'S-Series' },
   { id: 'Fold', label: 'Foldables', match: p => p.series === 'Fold' || p.series === 'Flip' },
   { id: 'A', label: 'A-Series' },
   { id: 'M', label: 'M-Series' },
+  { id: 'F', label: 'F-Series' },
 ];
 
 export default function Models() {

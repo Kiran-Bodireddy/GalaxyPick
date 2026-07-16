@@ -134,8 +134,19 @@ Never hardcode a model — it comes from `GEMINI_MODEL`, and models get retired.
 ### Backend (`backend/server.py`, single file)
 
 All routes live under an `/api` prefix (`api_router`). **`phones.py` is the source of
-truth for the 12-phone catalog** — it is a plain Python list, not database-backed.
+truth for the 21-phone catalog** — it is a plain Python list, not database-backed.
 MongoDB stores only `chat_messages`.
+
+**`price_inr` holds the street/effective price in India** (what a buyer actually pays,
+per 91mobiles / Samsung's own listed price), not the inflated MRP. Samsung India quotes
+both — e.g. the A56 is ₹34,999 against a ₹49,999 MRP — so pick the former when adding a
+phone. Street prices drift, so the figures go stale; each entry carries a comment naming
+its source and India launch date.
+
+**`year` is the India launch year, and it is load-bearing** — `latest` is derived from
+it, so a mis-dated phone silently claims to be current. Verify against Samsung Newsroom
+rather than assuming; a "2026 lineup" list will contain 2025 phones still on sale (the
+M16, M36, A17, F17 and F06 are all 2025).
 
 - **Every wizard id is a bare string matched against `match_tags`.** An id no phone
   carries doesn't raise — it scores zero against everything and the control silently
@@ -242,12 +253,13 @@ Be careful about presenting these as real:
     Scene7 presets only pad. Upscaling is fine — the card slot renders ~285px tall.
   - Re-sourcing an image means scraping the page with a headless browser. The product
     shots lazy-load, so a plain fetch sees only the marketing banner.
-- **The `a55`/`m55` entries were replaced by `a56`/`m56`** (Mar/Apr 2025, ₹34,999 and
-  ₹27,999 on samsung.com/in). Both originals were **discontinued** — `sm-a556`/`sm-m556`
-  are absent from Samsung India's lineup and the A55 is gone from Samsung UK too, so no
-  official render existed to fetch. Samsung India also sells the A36, A26, A17, M36 and
-  S25 FE, plus the S24 (`sm-s921`); none are in the catalog, so it still trails the real
-  lineup.
+- **The `a55`/`m55` entries were replaced by `a56`/`m56`.** Both originals were
+  **discontinued** — `sm-a556`/`sm-m556` are absent from Samsung India's lineup and the
+  A55 is gone from Samsung UK too, so no official render existed to fetch.
+- Samsung India still sells the A36, A26, A07, M06, M17, S25 FE and S24 (`sm-s921`),
+  none of which are in the catalog — it is accurate but not exhaustive. Every `series`
+  value needs a matching chip in `Models.jsx` `FILTERS` (a test enforces this); adding
+  the F-series required one.
 - **Store links are Google searches**, not real product pages
   (`google.com/search?q=site:samsung.com+…`).
 - Product pages **used to** show a hardcoded `98% Match` for every phone regardless of

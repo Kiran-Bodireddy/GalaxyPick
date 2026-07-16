@@ -22,7 +22,7 @@ PHONES = [
         "name": "Galaxy S26+",
         "series": "S",
         "year": 2026,
-        "price_inr": 99999,
+        "price_inr": 119999,  # launch price, Samsung Newsroom India (Feb 2026)
         "match_tags": ["performance", "display", "gamer", "creator", "tech_enthusiast", "professional"],
         "image": "/phones/s26-plus.jpg",
         "colors": ["#111827", "#F5F5F0", "#2563EB"],
@@ -35,7 +35,7 @@ PHONES = [
         "name": "Galaxy S26",
         "series": "S",
         "year": 2026,
-        "price_inr": 74999,
+        "price_inr": 87999,  # launch price, Samsung Newsroom India (Feb 2026)
         "match_tags": ["performance", "camera", "professional", "tech_enthusiast", "creator"],
         "image": "/phones/s26.jpg",
         "colors": ["#111", "#EEE", "#7F9CF5"],
@@ -124,6 +124,45 @@ PHONES = [
         "features": ["All-day battery", "Gorilla Glass Victus+", "50MP main camera", "5G ready"],
         "story": "Rock-solid daily driver with premium build for a budget-friendly price.",
     },
+    {
+        "id": "a57",
+        "name": "Galaxy A57 5G",
+        "series": "A",
+        "year": 2026,  # India launch 9 Apr 2026
+        "price_inr": 46990,
+        "match_tags": ["camera", "performance", "creator", "professional", "student", "durability", "display"],
+        "image": "/phones/a57.jpg",
+        "colors": ["#B8CBD9", "#3A3A3C", "#C9B6D9"],  # Awesome Icyblue, Graphite, Lilac
+        "specs": {"battery": "5000 mAh", "processor": "Exynos 1680", "camera": "50 MP", "display": "6.7\" Super AMOLED+ 120Hz"},
+        "features": ["Exynos 1680, 2x faster", "50MP OIS camera", "45W fast charging", "Gorilla Glass Victus+"],
+        "story": "The A-series flagship — near-premium performance and camera without flagship money.",
+    },
+    {
+        "id": "a27",
+        "name": "Galaxy A27 5G",
+        "series": "A",
+        "year": 2026,  # India launch 30 Jun 2026
+        "price_inr": 28999,
+        "match_tags": ["student", "budget", "camera", "family", "traveller", "durability"],
+        "image": "/phones/a27.jpg",
+        "colors": ["#BFD8B8", "#E7C6C9", "#111111"],  # Light Green, Light Pink, Black
+        "specs": {"battery": "5000 mAh", "processor": "Snapdragon 6 Gen 3", "camera": "50 MP", "display": "6.7\" FHD+ Super AMOLED 120Hz"},
+        "features": ["Snapdragon 6 Gen 3", "50MP triple camera", "Gorilla Glass Victus+", "6 years of OS updates"],
+        "story": "Dependable all-rounder with software support that outlasts the EMIs.",
+    },
+    {
+        "id": "a17",
+        "name": "Galaxy A17 5G",
+        "series": "A",
+        "year": 2025,  # unveiled 6 Aug 2025
+        "price_inr": 20990,
+        "match_tags": ["student", "budget", "family", "traveller"],
+        "image": "/phones/a17.jpg",
+        "colors": ["#5A6B8C", "#111111", "#D8D8D8"],
+        "specs": {"battery": "5000 mAh", "processor": "Exynos 1330", "camera": "50 MP", "display": "6.7\" OLED 90Hz"},
+        "features": ["50MP main camera", "5000 mAh battery", "25W fast charging", "Slim OLED design"],
+        "story": "Honest everyday 5G — an OLED screen and a big battery for not much money.",
+    },
     # ---- M-series (battery beasts) ----
     {
         "id": "m56",
@@ -150,6 +189,85 @@ PHONES = [
         "specs": {"battery": "6000 mAh", "processor": "Exynos 1380", "camera": "50 MP", "display": "6.6\" Super AMOLED"},
         "features": ["6000 mAh battery", "Two-day usage", "50MP camera", "vApnFast charging"],
         "story": "The ultimate budget battery beast — two days of usage on a single charge.",
+    },
+    {
+        "id": "m47",
+        "name": "Galaxy M47 5G",
+        "series": "M",
+        "year": 2026,  # India launch 4 Jul 2026
+        "price_inr": 23999,
+        "match_tags": ["budget", "battery", "entertainment", "gamer", "student", "family", "durability"],
+        "image": "/phones/m47.jpg",
+        "colors": ["#2B4C7E", "#8E2436", "#111111"],  # Blaze Blue, Rogue Red, Black
+        "specs": {"battery": "6000 mAh", "processor": "Snapdragon 6 Gen 3", "camera": "50 MP", "display": "6.7\" FHD+ Super AMOLED 120Hz"},
+        "features": ["6000 mAh + 45W charging", "Snapdragon 6 Gen 3", "50MP OIS camera", "Gorilla Glass Victus+"],
+        "story": "Monster battery meets a properly quick chip — the M-series all-rounder.",
+    },
+    {
+        "id": "m36",
+        "name": "Galaxy M36 5G",
+        "series": "M",
+        "year": 2025,  # India launch 27 Jun 2025
+        "price_inr": 22999,
+        "match_tags": ["budget", "battery", "entertainment", "student", "family"],
+        "image": "/phones/m36.jpg",
+        "colors": ["#BFD8B8", "#111111", "#5A4B8C"],
+        "specs": {"battery": "5000 mAh", "processor": "Exynos 1380", "camera": "50 MP", "display": "6.7\" Super AMOLED 120Hz"},
+        "features": ["Exynos 1380", "4K video recording", "120Hz Super AMOLED", "50MP triple camera"],
+        "story": "Punchy AMOLED and a capable chip for streaming and everyday shooting.",
+    },
+    {
+        "id": "m16",
+        "name": "Galaxy M16 5G",
+        "series": "M",
+        "year": 2025,  # India launch 5 Mar 2025
+        "price_inr": 14999,
+        "match_tags": ["budget", "battery", "entertainment", "student", "family"],
+        "image": "/phones/m16.jpg",
+        "colors": ["#BFD8B8", "#111111", "#4B6BA8"],
+        "specs": {"battery": "5000 mAh", "processor": "Dimensity 6300", "camera": "50 MP", "display": "6.7\" FHD+ Super AMOLED 120Hz"},
+        "features": ["120Hz Super AMOLED", "35W fast charging", "50MP triple camera", "Dimensity 6300"],
+        "story": "An AMOLED 120Hz screen at a price that usually buys an LCD.",
+    },
+    # ---- F-series (online-first value) ----
+    {
+        "id": "f70e",
+        "name": "Galaxy F70e 5G",
+        "series": "F",
+        "year": 2026,  # India launch 17 Feb 2026
+        "price_inr": 18999,
+        "match_tags": ["budget", "battery", "entertainment", "family", "student"],
+        "image": "/phones/f70e.jpg",
+        "colors": ["#2B4C7E", "#8FBF6B"],  # Spotlight Blue, Limelight Green
+        "specs": {"battery": "6000 mAh", "processor": "Dimensity 6300", "camera": "50 MP", "display": "6.7\" HD+ LCD 120Hz"},
+        "features": ["6000 mAh battery", "Leather-finish back", "120Hz display", "6 years of OS updates"],
+        "story": "Two-day battery and a leather-look back for well under fifteen thousand.",
+    },
+    {
+        "id": "f17",
+        "name": "Galaxy F17 5G",
+        "series": "F",
+        "year": 2025,  # India launch 11 Sep 2025
+        "price_inr": 13499,
+        "match_tags": ["budget", "student", "family", "camera"],
+        "image": "/phones/f17.jpg",
+        "colors": ["#7C6BAF", "#111111", "#4B6BA8"],  # Violet Pop and friends
+        "specs": {"battery": "5000 mAh", "processor": "Exynos 1330", "camera": "50 MP", "display": "6.7\" Super AMOLED 90Hz"},
+        "features": ["50MP OIS camera", "Super AMOLED screen", "5000 mAh battery", "25W fast charging"],
+        "story": "OIS on a budget — steadier photos than anything else near the price.",
+    },
+    {
+        "id": "f06",
+        "name": "Galaxy F06 5G",
+        "series": "F",
+        "year": 2025,  # India launch 12 Feb 2025
+        "price_inr": 9999,
+        "match_tags": ["budget", "student", "family"],
+        "image": "/phones/f06.jpg",
+        "colors": ["#4B3B7C", "#4B6BA8"],  # Dark Violet, Blue
+        "specs": {"battery": "5000 mAh", "processor": "Dimensity 6300", "camera": "50 MP", "display": "6.7\" HD+ LCD 90Hz"},
+        "features": ["Most affordable 5G Galaxy", "50MP main camera", "25W fast charging", "12 5G bands"],
+        "story": "The cheapest way into a Galaxy with 5G — big screen, all-day battery.",
     },
     # ---- S24 (last-gen) ----
     {
