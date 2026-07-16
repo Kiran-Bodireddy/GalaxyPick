@@ -1,7 +1,9 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowRight, User, Bot, GraduationCap, Sparkles } from 'lucide-react';
+import { ArrowRight } from 'lucide-react';
 import { Header } from '../components/Header';
+import chooseArt from '../assets/mode-choose.png';
+import chatArt from '../assets/mode-chat.png';
 
 export default function ChooseMode() {
   const nav = useNavigate();
@@ -11,14 +13,14 @@ export default function ChooseMode() {
       id: 'choose',
       title: 'Choose',
       body: "Answer a few guided questions and we'll recommend the best Galaxy for you.",
-      icon: GraduationCap,
+      art: chooseArt,
       to: '/persona',
     },
     {
       id: 'chat',
       title: 'Chat with Galaxy AI',
       body: 'Tell us what you need in your own words and Galaxy AI will find the perfect match.',
-      icon: Bot,
+      art: chatArt,
       to: '/chat',
     },
   ];
@@ -36,7 +38,6 @@ export default function ChooseMode() {
 
         <div className="grid md:grid-cols-2 gap-6">
           {modes.map((m, i) => {
-            const Icon = m.icon;
             return (
               <button
                 key={m.id}
@@ -44,8 +45,18 @@ export default function ChooseMode() {
                 onClick={() => nav(m.to)}
                 className={`fade-up fade-up-${i + 1} text-left group bg-white rounded-3xl border border-gray-100 p-8 shadow-[0_4px_24px_rgba(0,0,0,0.03)] hover:shadow-[0_20px_50px_rgba(27,78,255,0.12)] hover:-translate-y-1 transition-all duration-300`}
               >
-                <div className="h-40 rounded-2xl bg-gradient-to-br from-blue-50 to-white flex items-center justify-center mb-6 border border-blue-50">
-                  <Icon className="w-16 h-16 text-[#1B4EFF]" />
+                <div className="rounded-2xl overflow-hidden mb-6 border border-blue-50">
+                  {/* Decorative: the title and body already name the mode, so an alt
+                      here would only repeat them to a screen reader. Intrinsic size is
+                      set to reserve the space before the image loads. */}
+                  <img
+                    src={m.art}
+                    alt=""
+                    width={816}
+                    height={676}
+                    loading="lazy"
+                    className="w-full h-auto block transition-transform duration-300 motion-safe:group-hover:scale-[1.03]"
+                  />
                 </div>
                 <div className="text-xl font-bold text-black mb-2">{m.title}</div>
                 <p className="text-sm text-gray-500 leading-relaxed">{m.body}</p>

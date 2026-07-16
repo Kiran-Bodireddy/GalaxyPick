@@ -4,12 +4,17 @@ import { ArrowRight, Check } from 'lucide-react';
 import { Header } from '../components/Header';
 import { useGalaxy } from '../context/GalaxyContext';
 
-const PREFS = [
+// Exported so the recommendations empty state can name a blocking filter in the same
+// words the user picked it by. Every id here must exist in the catalog's match_tags —
+// tests/test_wizard_contract.py enforces that.
+export const PREFS = [
   { id: 'foldable', label: 'Open to foldables' },
   { id: 'compact', label: 'Compact size' },
   { id: 'large_screen', label: 'Large screen' },
   { id: 's_pen', label: 'S-Pen support' },
-  { id: '5g', label: '5G ready' },
+  // '5G ready' was removed: every phone in the catalog is 5G, so the chip matched all
+  // 12 and could never change a result — it only added noise to the empty state.
+  // A preference must be able to exclude something; test_wizard_contract.py enforces it.
   { id: 'latest', label: 'Latest model only' },
 ];
 
@@ -25,7 +30,10 @@ export default function Preferences() {
   const finish = async () => {
     setPreferences(picks);
     setLoading(true);
-    await fetchRecommendations();
+    // Pass picks explicitly: setPreferences won't have re-rendered yet, so
+    // fetchRecommendations would otherwise post the previous (empty) preferences and
+    // silently ignore everything just selected on this screen.
+    await fetchRecommendations({ preferences: picks });
     setLoading(false);
     nav('/recommendations');
   };

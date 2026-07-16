@@ -1,15 +1,17 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { BatteryFull, Zap, Camera, Monitor, HardDrive, Shield, Music, Wallet, ArrowRight, Check } from 'lucide-react';
+import { BatteryFull, Zap, Camera, Monitor, Shield, Music, Wallet, ArrowRight, Check } from 'lucide-react';
 import { Header } from '../components/Header';
 import { useGalaxy } from '../context/GalaxyContext';
 
-const NEEDS = [
+// Every id here must exist in the catalog's match_tags, or the need silently scores
+// nothing — tests/test_wizard_contract.py enforces that. 'storage' was removed rather
+// than tagged: the catalog carries no storage spec, so there is nothing to match on.
+export const NEEDS = [
   { id: 'battery', title: 'All-day Battery', body: 'For long classes and study sessions', icon: BatteryFull },
   { id: 'performance', title: 'Performance', body: 'Smooth multitasking and fast apps', icon: Zap },
   { id: 'camera', title: 'Camera', body: 'Capture notes, projects and memories', icon: Camera },
   { id: 'display', title: 'Display', body: 'Comfortable for reading & studying', icon: Monitor },
-  { id: 'storage', title: 'Storage', body: 'Move space for files, apps & videos', icon: HardDrive },
   { id: 'durability', title: 'Durability', body: 'Built to last through daily use', icon: Shield },
   { id: 'entertainment', title: 'Entertainment', body: 'Movies, music and gaming', icon: Music },
   { id: 'budget', title: 'Budget Friendly', body: 'Get the best value for money', icon: Wallet },

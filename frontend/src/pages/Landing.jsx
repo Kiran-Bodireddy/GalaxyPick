@@ -30,7 +30,7 @@ const flagshipSeries = [
     icon: ShieldCheck,
     iconBg: 'bg-slate-100',
     iconColor: 'text-slate-700',
-    to: '/product/a55',
+    to: '/product/a56',
   },
 ];
 

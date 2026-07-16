@@ -11,10 +11,10 @@ from pathlib import Path
 from pydantic import BaseModel, Field, ConfigDict
 from typing import List, Optional
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 import httpx
 
-from phones import PHONES, match_score
+from phones import PHONES, match_score, satisfies
 from google import genai
 from google.genai import types as genai_types
 
@@ -25,18 +25,93 @@ mongo_url = os.environ['MONGO_URL']
 client = AsyncIOMotorClient(mongo_url)
 db = client[os.environ['DB_NAME']]
 
-GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY')
 GEMINI_MODEL = os.environ.get('GEMINI_MODEL', 'gemini-3.5-flash')
-genai_client = genai.Client(api_key=GEMINI_API_KEY) if GEMINI_API_KEY else None
 
 # Gemini returns transient 5xx/429s under load; a retry usually clears them.
 RETRIABLE_STATUS = {429, 500, 502, 503, 504}
+QUOTA_EXHAUSTED_STATUS = 429
 MAX_LLM_ATTEMPTS = 3
 RETRY_BACKOFF_SECONDS = 0.8
+# How long a key is passed over after it reports quota exhaustion. Free-tier limits are
+# both per-minute and per-day; this is long enough to ride out the former without
+# permanently retiring a key that only tripped the former.
+KEY_COOLDOWN_SECONDS = 15 * 60
 LLM_ERROR_MESSAGE = (
     "Sorry — Galaxy AI is having trouble reaching its brain right now. "
     "Please try that again in a moment."
 )
+
+
+def _load_api_keys():
+    """Keys from GEMINI_API_KEYS (comma-separated), else the single GEMINI_API_KEY.
+
+    Order is preserved and duplicates dropped — the first key is the default and the
+    rest are only reached once an earlier one exhausts its quota.
+    """
+    raw = os.environ.get('GEMINI_API_KEYS') or os.environ.get('GEMINI_API_KEY') or ''
+    keys = []
+    for key in (k.strip() for k in raw.split(',')):
+        if key and key not in keys:
+            keys.append(key)
+    return keys
+
+
+class GeminiKeyPool:
+    """Rotates across API keys when one exhausts its quota.
+
+    Free-tier quota is billed per Google Cloud *project*, per model, per day — so this
+    only buys headroom when the keys belong to different projects. Four keys minted in
+    one project share a single bucket and will exhaust simultaneously, and rotation
+    will do nothing for you.
+    """
+
+    def __init__(self, keys):
+        self._clients = [genai.Client(api_key=k) for k in keys]
+        # Only ever identify a key by its last 4 chars — the rest must not reach a log.
+        self._labels = [f"key{i + 1}(…{k[-4:]})" for i, k in enumerate(keys)]
+        self._cooling_until = [None] * len(keys)
+        self._current = 0
+
+    def __bool__(self):
+        return bool(self._clients)
+
+    def __len__(self):
+        return len(self._clients)
+
+    def acquire(self):
+        """The current key, or the next one not cooling off. None if all are cooling."""
+        now = datetime.now(timezone.utc)
+        for offset in range(len(self._clients)):
+            idx = (self._current + offset) % len(self._clients)
+            until = self._cooling_until[idx]
+            if until is None or until <= now:
+                self._cooling_until[idx] = None
+                self._current = idx
+                return idx, self._clients[idx], self._labels[idx]
+        return None
+
+    def mark_exhausted(self, idx):
+        """Pass this key over for a while and start from the next one."""
+        self._cooling_until[idx] = datetime.now(timezone.utc) + timedelta(seconds=KEY_COOLDOWN_SECONDS)
+        self._current = (idx + 1) % len(self._clients)
+        logger.warning(
+            "Gemini %s hit quota; cooling it for %ds and rotating to %s",
+            self._labels[idx], KEY_COOLDOWN_SECONDS, self._labels[self._current],
+        )
+
+    def status(self):
+        now = datetime.now(timezone.utc)
+        return [
+            {
+                "key": label,
+                "cooling": bool(until and until > now),
+                "available_in_seconds": max(0, int((until - now).total_seconds())) if until and until > now else 0,
+            }
+            for label, until in zip(self._labels, self._cooling_until)
+        ]
+
+
+key_pool = GeminiKeyPool(_load_api_keys())
 
 app = FastAPI(title="GalaxyPick API")
 api_router = APIRouter(prefix="/api")
@@ -71,6 +146,19 @@ async def root():
     return {"message": "GalaxyPick API is running"}
 
 
+@api_router.get("/health")
+async def health():
+    """Operational view of the LLM key pool. Reports only key suffixes, never keys."""
+    keys = key_pool.status()
+    return {
+        "status": "ok",
+        "model": GEMINI_MODEL,
+        "keys_configured": len(key_pool),
+        "keys_available": sum(1 for k in keys if not k["cooling"]),
+        "keys": keys,
+    }
+
+
 @api_router.get("/phones")
 async def list_phones():
     return {"phones": PHONES}
@@ -89,16 +177,64 @@ async def recommend(req: RecommendRequest):
     tags = list(req.needs)
     if req.persona:
         tags.append(req.persona.lower().replace(" ", "_").replace("/", "_"))
-    scored = []
-    for p in PHONES:
-        score = match_score(p, tags, req.budget)
-        scored.append({**p, "match": score})
-    scored.sort(key=lambda x: x["match"], reverse=True)
-    top = scored[:3]
-    # Mark best match
-    if top:
+
+    # Preferences and budget are constraints the user stated, not leanings: a phone with
+    # no S-Pen must never surface for someone who asked for one, however well it scores
+    # elsewhere. Needs and persona stay soft — they rank what's left.
+    eligible = [p for p in PHONES if satisfies(p, req.preferences)]
+    affordable = [p for p in eligible if not req.budget or p["price_inr"] <= req.budget]
+
+    scored = sorted(
+        ({**p, "match": match_score(p, tags, req.budget)} for p in affordable),
+        key=lambda x: x["match"],
+        reverse=True,
+    )
+
+    if scored:
+        top = scored[:3]
         top[0]["best_match"] = True
-    return {"recommendations": top, "all_scored": scored}
+        return {"recommendations": top, "all_scored": scored, "unsatisfiable": None}
+
+    # Nothing satisfies both the preferences and the budget. Rather than quietly
+    # dropping a constraint, work out which single one is actually responsible so the
+    # user can be offered the one change that would help, and name the cheapest phone
+    # honouring the preferences as the alternative.
+    nearest = min(eligible, key=lambda p: p["price_inr"], default=None)
+    return {
+        "recommendations": [],
+        "all_scored": [],
+        "unsatisfiable": {
+            "preferences": req.preferences,
+            "budget": req.budget,
+            "nearest": {**nearest, "match": match_score(nearest, tags, None)} if nearest else None,
+            "relaxations": _relaxations(req.preferences, req.budget),
+        },
+    }
+
+
+def _relaxations(preferences, budget):
+    """Preferences that would, on their own, unblock the search if dropped.
+
+    With several filters active it isn't obvious which one is at fault — "latest" quietly
+    excludes nine phones while a filter every phone matches excludes none. Offering
+    "drop everything" throws away constraints the user could have kept, so surface the
+    single drops that actually produce results, best first.
+    """
+    options = []
+    for dropped in preferences:
+        kept = [p for p in preferences if p != dropped]
+        hits = [
+            p for p in PHONES
+            if satisfies(p, kept) and (not budget or p["price_inr"] <= budget)
+        ]
+        if hits:
+            options.append({
+                "drop": dropped,
+                "count": len(hits),
+                "cheapest_inr": min(h["price_inr"] for h in hits),
+            })
+    options.sort(key=lambda o: (-o["count"], o["cheapest_inr"]))
+    return options
 
 
 @api_router.get("/location")
@@ -166,22 +302,25 @@ async def buy_links(phone_id: str):
 
 
 # -------------------- Chat with Galaxy AI --------------------
-SYSTEM_PROMPT = """You are Galaxy AI, a friendly Samsung Galaxy phone recommendation assistant.
+def _catalog_for_prompt():
+    """The lineup the model may recommend, rendered from the catalog itself.
+
+    This list used to be hand-written here, and it drifted: it still offered the A55 and
+    M55 long after Samsung discontinued them. A model naming a phone that isn't in PHONES
+    is worse than unhelpful — phones_mentioned() can't match it, so the reply arrives with
+    no product card and links nowhere.
+    """
+    return "\n".join(
+        f"- {p['name']} (₹{p['price_inr']:,}) — {', '.join(p['features'][:3])}"
+        for p in sorted(PHONES, key=lambda p: -p["price_inr"])
+    )
+
+
+SYSTEM_PROMPT = f"""You are Galaxy AI, a friendly Samsung Galaxy phone recommendation assistant.
 Your job is to understand the user's needs (budget, use-case, preferences) and suggest the best Samsung Galaxy phone(s) from Samsung's 2024-2026 lineup.
 
 Available Samsung phones you can recommend:
-- Galaxy S26 Ultra (₹139,999) — Ultimate flagship, 200MP camera, S-Pen
-- Galaxy S26+ (₹99,999) — Large flagship
-- Galaxy S26 (₹74,999) — Compact flagship
-- Galaxy Z Fold 7 (₹174,999) — Foldable, 8" screen
-- Galaxy Z Flip 7 (₹109,999) — Flip foldable
-- Galaxy S25 Ultra (₹129,999) — Last-gen flagship
-- Galaxy S25 (₹69,999) — Compact
-- Galaxy S24 FE (₹32,999) — Fan Edition
-- Galaxy A55 5G (₹32,999) — Mid-range sweet spot
-- Galaxy A35 5G (₹24,999) — Budget mid-range
-- Galaxy M55 5G (₹24,999) — Battery + performance
-- Galaxy M35 5G (₹17,999) — Budget battery beast
+{_catalog_for_prompt()}
 
 Guidelines:
 - Keep responses concise (2-4 short paragraphs max)
@@ -194,7 +333,7 @@ Guidelines:
 
 @api_router.post("/chat")
 async def chat(req: ChatRequest):
-    if not genai_client:
+    if not key_pool:
         raise HTTPException(status_code=500, detail="LLM key not configured")
 
     # Save user message
@@ -225,9 +364,19 @@ async def chat(req: ChatRequest):
     async def event_gen():
         full = []
         failed = False
-        for attempt in range(MAX_LLM_ATTEMPTS):
+        # Give every key a turn: with more keys than the base retry budget, a quota
+        # failure on each of the first few must not exhaust the attempts before the
+        # last key has been tried.
+        max_attempts = max(MAX_LLM_ATTEMPTS, len(key_pool))
+        for attempt in range(max_attempts):
+            lease = key_pool.acquire()
+            if lease is None:
+                failed = True
+                logger.error("Every Gemini key is cooling off after quota exhaustion; giving up")
+                break
+            idx, client, label = lease
             try:
-                stream = await genai_client.aio.models.generate_content_stream(
+                stream = await client.aio.models.generate_content_stream(
                     model=GEMINI_MODEL, contents=contents, config=config
                 )
                 async for chunk in stream:
@@ -241,15 +390,23 @@ async def chat(req: ChatRequest):
             except Exception as e:
                 failed = True
                 code = getattr(e, "code", None)
+                out_of_quota = code == QUOTA_EXHAUSTED_STATUS
+                if out_of_quota:
+                    key_pool.mark_exhausted(idx)
                 retriable = code in RETRIABLE_STATUS and not full
                 logger.error(
-                    f"LLM stream error (attempt {attempt + 1}/{MAX_LLM_ATTEMPTS}, "
-                    f"code={code}, retrying={retriable and attempt + 1 < MAX_LLM_ATTEMPTS}): {e}"
+                    f"LLM stream error on {label} (attempt {attempt + 1}/{max_attempts}, "
+                    f"code={code}, retrying={retriable and attempt + 1 < max_attempts}): {e}"
                 )
-                # Once any text has reached the client, a retry would duplicate it.
-                if not retriable or attempt + 1 == MAX_LLM_ATTEMPTS:
+                # Once any text has reached the client, a retry would duplicate it —
+                # this is why rotation can only ever happen before the first chunk.
+                if not retriable or attempt + 1 == max_attempts:
                     break
-                await asyncio.sleep(RETRY_BACKOFF_SECONDS * (2 ** attempt))
+                # A quota failure rotated us onto a different project's bucket, so
+                # there is nothing to wait for; only back off when retrying the
+                # same key after a transient server error.
+                if not out_of_quota:
+                    await asyncio.sleep(RETRY_BACKOFF_SECONDS * (2 ** attempt))
 
         if failed and not full:
             yield f"data: {json.dumps(LLM_ERROR_MESSAGE)}\n\n"

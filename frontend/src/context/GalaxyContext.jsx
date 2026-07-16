@@ -10,6 +10,9 @@ export const GalaxyProvider = ({ children }) => {
   const [budget, setBudget] = useState(null);
   const [preferences, setPreferences] = useState([]);
   const [recommendations, setRecommendations] = useState([]);
+  // Set when the chosen preferences + budget can't be satisfied together — carries the
+  // cheapest phone that does meet the preferences, so the UI can offer a way forward.
+  const [unsatisfiable, setUnsatisfiable] = useState(null);
   const [location, setLocation] = useState({ currency: 'INR', country: 'India' });
   const [userName, setUserName] = useState('Friend');
 
@@ -19,19 +22,24 @@ export const GalaxyProvider = ({ children }) => {
 
   const reset = () => {
     setPersona(null); setNeeds([]); setBudget(null); setPreferences([]); setRecommendations([]);
+    setUnsatisfiable(null);
   };
 
-  const fetchRecommendations = async () => {
-    const { data } = await axios.post(`${API}/recommend`, { persona, needs, budget, preferences });
+  // Overrides let a caller refetch with a changed constraint without waiting for the
+  // state update to land — "raise my budget and show me the results" is one action.
+  const fetchRecommendations = async (overrides = {}) => {
+    const body = { persona, needs, budget, preferences, ...overrides };
+    const { data } = await axios.post(`${API}/recommend`, body);
     setRecommendations(data.recommendations);
-    return data.recommendations;
+    setUnsatisfiable(data.unsatisfiable ?? null);
+    return data;
   };
 
   return (
     <Ctx.Provider value={{
       persona, setPersona, needs, setNeeds, budget, setBudget,
       preferences, setPreferences, recommendations, fetchRecommendations,
-      location, userName, setUserName, reset, API,
+      unsatisfiable, location, userName, setUserName, reset, API,
     }}>
       {children}
     </Ctx.Provider>

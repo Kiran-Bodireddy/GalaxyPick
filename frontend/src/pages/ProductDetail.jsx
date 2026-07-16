@@ -23,7 +23,7 @@ const StoreMark = ({ name }) => {
 export default function ProductDetail() {
   const { id } = useParams();
   const nav = useNavigate();
-  const { API } = useGalaxy();
+  const { API, recommendations } = useGalaxy();
   const [phone, setPhone] = useState(null);
   const [tab, setTab] = useState('reviews');
   const [buyLinks, setBuyLinks] = useState([]);
@@ -56,6 +56,10 @@ export default function ProductDetail() {
   }, [id, API]);
 
   if (!phone) return <div className="min-h-screen bg-white"><Header variant="inner" /><div className="p-12 text-center text-gray-500">Loading…</div></div>;
+
+  // Only the wizard can say how well a phone fits *this* user. Deep-linking here
+  // without walking it leaves no score, so the badge is omitted rather than invented.
+  const scored = recommendations.find(r => r.id === phone.id);
 
   const specItems = [
     { icon: BatteryFull, label: phone.specs.battery, sub: 'Battery' },
@@ -101,10 +105,14 @@ export default function ProductDetail() {
               </div>
             </div>
             <h1 className="mt-2 font-display text-4xl lg:text-5xl font-extrabold text-black">{phone.name}</h1>
-            <div className="mt-3 flex items-center gap-3">
-              <span className="bg-[#E8FAEE] text-[#00A344] text-xs font-extrabold px-2.5 py-1 rounded-full">98% Match</span>
-              <span className="text-xs text-gray-500">Your best match</span>
-            </div>
+            {scored && (
+              <div className="mt-3 flex items-center gap-3">
+                <span data-testid="product-match" className="bg-[#E8FAEE] text-[#00A344] text-xs font-extrabold px-2.5 py-1 rounded-full">
+                  {scored.match}% Match
+                </span>
+                {scored.best_match && <span className="text-xs text-gray-500">Your best match</span>}
+              </div>
+            )}
             <div className="mt-4 text-2xl font-extrabold text-black">From {fmt(phone.price_inr)}<span className="text-[#1B4EFF]">*</span></div>
 
             <div className="mt-6">
