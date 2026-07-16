@@ -11,7 +11,7 @@ const flagshipSeries = [
     icon: Smartphone,
     iconBg: 'bg-[#E8F0FE]',
     iconColor: 'text-[#1B4EFF]',
-    to: '/persona',
+    to: '/product/s26-ultra',
   },
   {
     id: 'z',
@@ -20,7 +20,7 @@ const flagshipSeries = [
     icon: LayoutGrid,
     iconBg: 'bg-amber-50',
     iconColor: 'text-amber-500',
-    to: '/persona',
+    to: '/product/z-fold-7',
   },
   {
     id: 'a',
@@ -29,7 +29,7 @@ const flagshipSeries = [
     icon: ShieldCheck,
     iconBg: 'bg-slate-100',
     iconColor: 'text-slate-700',
-    to: '/persona',
+    to: '/product/a55',
   },
 ];
 
